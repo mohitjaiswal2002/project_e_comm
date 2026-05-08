@@ -1,5 +1,8 @@
 from pyspark.sql import SparkSession
 import logging
+import os
+os.environ["HADOOP_HOME"] = r"C:\hadoop"
+os.environ["PATH"] = r"C:\hadoop\bin;" + os.environ.get("PATH", "")
 
 from src.read_data import read_data
 from src.transform import clean_data, transform_data
@@ -17,7 +20,7 @@ def main():
         .getOrCreate()
 
     # Read
-    df = read_data(spark, "Projects\pyspark-ecommerce-pipeline\data\data.csv")
+    df = read_data(spark, "data/data.csv")
 
     # Clean
     df_clean = clean_data(df)
@@ -26,7 +29,7 @@ def main():
     df_final, country_df, customer_df = transform_data(df_clean)
 
     # Write Parquet (for project)
-    write_data(df_final, "Projects\pyspark-ecommerce-pipeline\output_parquet", "parquet")
+    write_data(df_final, "output_parquet", "parquet")
 
     # Stop Spark
     spark.stop()
