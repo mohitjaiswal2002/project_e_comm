@@ -1,60 +1,45 @@
 import logging
-from pyspark.sql.functions import col, to_timestamp, expr
+from pyspark.sql.functions import col, expr, sum, round
 
 logger = logging.getLogger(__name__)
 
-def clean_data(df):
 
+def clean_data(df):
     logger.info("Starting cleaning process")
 
-    # Cast types
     df = (df
           .withColumn("Quantity", col("Quantity").cast("int"))
           .withColumn("UnitPrice", col("UnitPrice").cast("double"))
-         .withColumn("InvoiceDate",
-          expr("try_to_timestamp(InvoiceDate, 'M/d/yyyy H:mm')"))
-         )
-
-    # Remove nulls
-    df = df.filter(
-        col("Quantity").isNotNull() &
-        col("UnitPrice").isNotNull() &
-        col("InvoiceDate").isNotNull()
-    )
-
-    # Remove duplicates
-    df = df.dropDuplicates()
-
-    # Remove invalid values
-    df = df.filter(
-        (col("Quantity") > 0) &
-        (col("UnitPrice") > 0)
+          .withColumn("InvoiceDate", expr("try_to_timestamp(InvoiceDate, 'M/d/yyyy H:mm')"))
+          .filter(col("Quantity").isNotNull() &
+                  col("UnitPrice").isNotNull() &
+                  col("InvoiceDate").isNotNull())
+          .filter((col("Quantity") > 0) & (col("UnitPrice") > 0))
+          .dropDuplicates()
     )
 
     logger.info("Cleaning completed")
-
     return df
 
 
 def transform_data(df):
-
     logger.info("Starting transformation")
 
-    # Revenue column
-    df = df.withColumn("Revenue", col("Quantity") * col("UnitPrice"))
+    # Cache since df is used in 3 derived dataframes
+    df = df.withColumn("Revenue", round(col("Quantity") * col("UnitPrice"), 2))
 
-    # Top countries
     country_df = (df
                   .groupBy("Country")
-                  .sum("Revenue")
-                  .withColumnRenamed("sum(Revenue)", "TotalRevenue"))
+                  .agg(round(sum("Revenue"), 2).alias("TotalRevenue"))
+                  .orderBy(col("TotalRevenue").desc())
+    )
 
-    # Top customers
     customer_df = (df
+                   .filter(col("CustomerID").isNotNull())
                    .groupBy("CustomerID")
-                   .sum("Revenue")
-                   .withColumnRenamed("sum(Revenue)", "TotalRevenue"))
+                   .agg(round(sum("Revenue"), 2).alias("TotalRevenue"))
+                   .orderBy(col("TotalRevenue").desc())
+    )
 
     logger.info("Transformation completed")
-
     return df, country_df, customer_df

@@ -12,13 +12,14 @@ logging.basicConfig(
 def main():
     spark = SparkSession.builder \
         .appName("Ecommerce Pipeline") \
+        .config("spark.sql.shuffle.partitions", "8") \
         .getOrCreate()
 
     df = read_data(spark, "data/data.csv")
     df_clean = clean_data(df)
     df_final, country_df, customer_df = transform_data(df_clean)
     write_data(df_final, "output_parquet", "parquet")
-
+    input("Press Enter to stop Spark...")
     spark.stop()
 
 if __name__ == "__main__":
